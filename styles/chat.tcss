@@ -1,0 +1,81 @@
+#main {
+    layout: horizontal;
+}
+
+#groups {
+    width: 25%;
+    border-right: solid gray;
+    padding-top: 1;
+    padding-right: 1;
+}
+
+#chat {
+    width: 75%;
+    layout: vertical;
+    padding: 1;
+}
+
+#group-header {
+    height: 2;
+    border-bottom: solid gray;
+}
+
+#chat-title {
+    text-align: left;
+    margin-bottom: 1;
+}
+
+#group-menu {
+    dock: right;
+    background: gray;
+}
+
+#messages {
+    height: 7fr;          /* 占满剩余空间 */
+    padding: 1;
+}
+
+#input-area {
+    height: 3fr;            /* 固定高度 */
+    border-top: solid gray;
+    padding: 0 1;
+}
+
+#msg-input {
+    width: 1fr;
+    height: 1fr;
+}
+
+#tools {
+    height: 2;
+    margin-top: 1;
+}
+
+#preview-toggle {
+    dock: right;
+    margin-left: 1;
+}
+
+/* 聊天消息的 meta 信息 */
+#meta.right {
+    width: auto;
+}
+
+Right {
+}
+
+.meta.right {
+    padding: 0 2;
+}
+.meta.left {
+    padding: 0 1;
+}
+
+/* 消息体左对齐 */
+.msg {
+    height: auto;
+    border: solid gray;
+    margin: 0 1 1 0;
+    padding: 0 1 -1 0;
+    width: 60%;
+}

@@ -1,0 +1,35 @@
+AddServerScreen {
+    align: center middle;
+}
+
+#dialog {
+    layout: grid;
+    grid-size: 2;         /* 两列 */
+    grid-gutter: 1 2;     /* 行间距 1，列间距 2 */
+    grid-rows: auto auto auto auto auto;  /* 五行 */
+    grid-columns: 1fr 2fr;
+    padding: 2;
+    width: 60%;
+    height: auto;
+    border: thick $background 80%;
+    background: $surface;
+}
+
+#dialog > Input {
+    height: 100%
+}
+
+/* 第一行 Label 独占两列 */
+#title {
+    column-span: 2;
+}
+
+/* Checkbox 独占两列 */
+#dialog > Checkbox {
+    column-span: 2;
+}
+
+/* 最后一行两个 Button 并排 */
+#dialog > Button {
+    width: 100%;
+}

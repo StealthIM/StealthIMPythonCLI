@@ -1,0 +1,7 @@
+ReLoginScreen {
+    align: center middle;
+}
+
+#login-container {
+    height: 14;
+}

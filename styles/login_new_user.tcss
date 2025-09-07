@@ -1,0 +1,18 @@
+LoginNewUserScreen {
+    align: center middle;
+}
+
+#login-container {
+    padding: 2;
+    width: 60%;
+    height: 16;
+    background: $surface;
+}
+
+#login-container > Input {
+    margin: 0 1 1 0;
+}
+
+#login-container > Horizontal > Button {
+    margin: 0 2 1 0;
+}
