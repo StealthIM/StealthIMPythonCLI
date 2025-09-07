@@ -53,8 +53,10 @@ ERR_CODES = {
     1502: "Authentication Failed",
 }
 
+
 def get_msg(code: int) -> str:
     return ERR_CODES.get(code, "Unknown Error")
+
 
 SUCCESS = 800
 

@@ -10,16 +10,22 @@ else:
     class IMApp:
         ...
 
+
 # noinspection PyRedeclaration
 class Screen(Screen):
     SCREEN_NAME: str
+
     @property
     def app(self) -> IMApp:
         return cast(IMApp, super().app)
 
+
 T = TypeVar("T")
+
+
 class ModalScreen(ModalScreen[T]):
     SCREEN_NAME: str
+
     @property
     def app(self) -> IMApp:
         return cast(IMApp, super().app)

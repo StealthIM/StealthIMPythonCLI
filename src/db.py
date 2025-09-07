@@ -1,11 +1,12 @@
+import dataclasses
+import datetime
 import os
+from typing import cast, Optional
+
 from sqlalchemy import Column, Integer, String, create_engine, DateTime, Text, func
 from sqlalchemy.orm import declarative_base, sessionmaker
-from typing import cast, Optional
-import datetime
 
 import StealthIM
-from log import logger
 
 DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/configs.sqlite"))
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -29,6 +30,7 @@ class User(Base):
     username = Column(String, nullable=False)
     session = Column(String, nullable=False)
 
+
 class Group(Base):
     __tablename__ = "groups"
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -37,6 +39,7 @@ class Group(Base):
     name = Column(String, nullable=False)
     last_update = Column(DateTime, nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
     latest_msgid = Column(Integer, nullable=False)
+
 
 class Message(Base):
     __tablename__ = "messages"
@@ -50,6 +53,7 @@ class Message(Base):
     username = Column(String, nullable=False)
     hash = Column(String, nullable=False)
 
+
 class Nickname(Base):
     __tablename__ = "nicknames"
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -57,6 +61,7 @@ class Nickname(Base):
     username = Column(String, nullable=False)
     nickname = Column(String, nullable=False)
     last_update = Column(DateTime, nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+
 
 Base.metadata.create_all(bind=engine)
 
@@ -113,12 +118,15 @@ def update_user_session(user_id: int, new_session: str) -> None:
             user.session = new_session
             session.commit()
 
+
 def add_group(server_id: int, group_id: int, name: str) -> None:
     with SessionLocal() as session:
-        group = Group(server_id=server_id, group_id=group_id, name=name, last_update=datetime.datetime.now(datetime.timezone.utc),
+        group = Group(server_id=server_id, group_id=group_id, name=name,
+                      last_update=datetime.datetime.now(datetime.timezone.utc),
                       latest_msgid=0)
         session.add(group)
         session.commit()
+
 
 def update_group_name(group_id: int, server_id: int, new_name: str) -> None:
     with SessionLocal() as session:
@@ -128,12 +136,14 @@ def update_group_name(group_id: int, server_id: int, new_name: str) -> None:
             group.last_update = datetime.datetime.now(datetime.timezone.utc)
             session.commit()
 
+
 def update_group_msgid(group_id: int, server_id: int, msgid: int) -> None:
     with SessionLocal() as session:
         group = session.query(Group).filter_by(group_id=group_id, server_id=server_id).first()
         if group:
             group.latest_msgid = msgid
             session.commit()
+
 
 def get_group_msgid(group_id: int, server_id: int) -> Optional[int]:
     with SessionLocal() as session:
@@ -142,10 +152,12 @@ def get_group_msgid(group_id: int, server_id: int) -> Optional[int]:
             return cast(int, group.latest_msgid)
         return None
 
+
 async def get_group_name(server_id: int, user: StealthIM.User, group_id: int) -> StealthIM.group.GroupPublicInfoResult:
     with SessionLocal() as session:
         group = session.query(Group).filter_by(group_id=group_id, server_id=server_id).first()
-    if not group or datetime.datetime.now(datetime.timezone.utc) - group.last_update.replace(tzinfo=datetime.timezone.utc) > datetime.timedelta(days=1):
+    if not group or datetime.datetime.now(datetime.timezone.utc) - group.last_update.replace(
+            tzinfo=datetime.timezone.utc) > datetime.timedelta(days=1):
         res = await StealthIM.Group(user, group_id).get_info()
         if res.result.code == 800:
             if group:
@@ -162,11 +174,14 @@ async def get_group_name(server_id: int, user: StealthIM.User, group_id: int) ->
         name=str(group.name),
     )
 
+
 def add_nickname(server_id: int, username: str, nickname: str) -> None:
     with SessionLocal() as session:
-        col = Nickname(server_id=server_id, username=username, nickname=nickname, last_update=datetime.datetime.now(datetime.timezone.utc))
+        col = Nickname(server_id=server_id, username=username, nickname=nickname,
+                       last_update=datetime.datetime.now(datetime.timezone.utc))
         session.add(col)
         session.commit()
+
 
 def update_nickname(server_id: int, username: str, nickname: str) -> None:
     with SessionLocal() as session:
@@ -176,10 +191,12 @@ def update_nickname(server_id: int, username: str, nickname: str) -> None:
             col.last_update = datetime.datetime.now(datetime.timezone.utc)
             session.commit()
 
+
 async def get_nickname(server_id: int, user: StealthIM.User, username: str) -> StealthIM.user.UserPublicInfo:
     with SessionLocal() as session:
         col = session.query(Nickname).filter_by(server_id=server_id, username=username).first()
-    if not col or datetime.datetime.now(datetime.timezone.utc) - col.last_update.replace(tzinfo=datetime.timezone.utc) > datetime.timedelta(days=1):
+    if not col or datetime.datetime.now(datetime.timezone.utc) - col.last_update.replace(
+            tzinfo=datetime.timezone.utc) > datetime.timedelta(days=1):
         res = await user.get_user_info(username)
         if res.result.code == 800:
             if col:
@@ -194,6 +211,7 @@ async def get_nickname(server_id: int, user: StealthIM.User, username: str) -> S
         ),
         nickname=str(col.nickname),
     )
+
 
 def add_message(
         server_id: int,
@@ -218,6 +236,8 @@ def add_message(
         )
         session.add(msg)
         session.commit()
+    return msg
+
 
 def get_latest_messages(
         server_id: int,
@@ -228,7 +248,8 @@ def get_latest_messages(
         max_id = session.query(func.max(Message.msgid)).filter_by(
             server_id=server_id, group_id=group_id
         ).scalar() or 0
-    return get_messages(server_id, group_id, max_id+1, False, limit)
+    return get_messages(server_id, group_id, max_id + 1, False, limit)
+
 
 def get_messages(
         server_id: int,
@@ -264,7 +285,7 @@ def get_messages(
         subquery = base_query.limit(limit).subquery()
 
         return cast(list[Message],
-            session.query(Message)
-            .from_statement(subquery.select().order_by(subquery.c.msgid.asc()))
-            .all()
-        )
+                    session.query(Message)
+                    .from_statement(subquery.select().order_by(subquery.c.msgid.asc()))
+                    .all()
+                    )

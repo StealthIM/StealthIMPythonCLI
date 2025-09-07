@@ -4,12 +4,12 @@ from typing import Optional
 
 from textual.app import App
 from textual.logging import TextualHandler
-import StealthIM
 
+import StealthIM
 import db
-from patch import Screen, ModalScreen
 import screens
 from log import logger
+from patch import Screen, ModalScreen
 
 
 def get_screens(module):
@@ -34,6 +34,7 @@ class AppData:
     user_db: Optional[db.User] = None
     group: Optional[StealthIM.Group] = None
 
+
 class IMApp(App):
     TITLE = "Stealth IM"
     ALL_SCREENS = [
@@ -54,6 +55,7 @@ class IMApp(App):
     async def action_app_back(self):
         if len(self.screen_stack) > 2:
             await self.pop_screen()
+
 
 if __name__ == "__main__":
     StealthIM.logger.setLevel(logging.DEBUG)
