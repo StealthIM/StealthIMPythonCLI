@@ -15,13 +15,13 @@ class RegisterScreen(ModalScreen):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         with Vertical(id="register-container"):
-            yield Input(placeholder="用户名", id="username")
-            yield Input(placeholder="密码", password=True, id="password")
-            yield Input(placeholder="确认密码", password=True, id="confirm-password")
-            yield Input(placeholder="昵称", password=False, id="nickname")
+            yield Input(placeholder="Username", id="username")
+            yield Input(placeholder="Password", password=True, id="password")
+            yield Input(placeholder="Confirm Password", password=True, id="confirm-password")
+            yield Input(placeholder="Nickname", password=False, id="nickname")
             with Horizontal():
-                yield Button("返回", id="back")
-                yield Button("注册", id="register", variant="success")
+                yield Button("Back", id="back")
+                yield Button("Register", id="register", variant="success")
             yield Label("", id="status")
         yield Footer()
 
@@ -36,21 +36,21 @@ class RegisterScreen(ModalScreen):
             status = self.query_one("#status", Label)
 
             if not username or not password or not confirm_password:
-                status.update("[red]请输入用户名和密码[/]")
+                status.update("[red]Please enter username and password[/]")
                 return
             if password != confirm_password:
-                status.update("[red]两次输入的密码不一致[/]")
+                status.update("[red]Passwords do not match[/]")
                 return
             if not 3 <= len(username) <= 20:
-                status.update("[red]用户名长度应在3到20个字符之间[/]")
+                status.update("[red]Username length must be between 3 and 20 characters[/]")
                 return
             if not all(c.isalnum() or c == '_' for c in username):
-                status.update("[red]用户名只能包含字母、数字、下划线[/]")
+                status.update("[red]Username can only contain letters, numbers, and underscores[/]")
                 return
             if not 6 <= len(password) <= 20:
-                status.update("[red]密码长度应在6到20个字符之间[/]")
+                status.update("[red]Password length must be between 6 and 20 characters[/]")
                 return
-            status.update("[yellow]正在注册，请稍候...[/]")
+            status.update("[yellow]Registering, please wait...[/]")
             self.app.call_after_refresh(lambda: asyncio.create_task(
                 self.do_register(username, password, nickname)
             ))
@@ -59,12 +59,12 @@ class RegisterScreen(ModalScreen):
         status = self.query_one("#status", Label)
         try:
             res = await self.app.data.server.register(username, password, nickname)
-            if res.result.code != 800:
+            if res.result.code != codes.SUCCESS:
                 status.update(
-                    f"[red]注册失败: {res.result.code}({codes.get_msg(res.result.code)}): {res.result.msg}[/]"
+                    f"[red]Registration failed: {res.result.code}({codes.get_msg(res.result.code)}): {res.result.msg}[/]"
                 )
                 return
         except Exception as e:
-            status.update(f"[red]注册失败: {e}[/]")
+            status.update(f"[red]Registration failed: {e}[/]")
             return
-        status.update("[green]注册成功！请返回登录。[/]")
+        status.update("[green]Registration successful! Please return to login.[/]")

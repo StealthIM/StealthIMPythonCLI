@@ -7,6 +7,7 @@ from sqlalchemy import Column, Integer, String, create_engine, DateTime, Text, f
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 import StealthIM
+import codes
 
 DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/configs.sqlite"))
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -159,7 +160,7 @@ async def get_group_name(server_id: int, user: StealthIM.User, group_id: int) ->
     if not group or datetime.datetime.now(datetime.timezone.utc) - group.last_update.replace(
             tzinfo=datetime.timezone.utc) > datetime.timedelta(days=1):
         res = await StealthIM.Group(user, group_id).get_info()
-        if res.result.code == 800:
+        if res.result.code == codes.SUCCESS:
             if group:
                 update_group_name(group_id, server_id, res.name)
             else:
@@ -167,7 +168,7 @@ async def get_group_name(server_id: int, user: StealthIM.User, group_id: int) ->
         return res
     return StealthIM.group.GroupPublicInfoResult(
         result=StealthIM.apis.common.Result(
-            code=800,
+            code=codes.SUCCESS,
             msg=""
         ),
         create_at="0",
@@ -198,7 +199,7 @@ async def get_nickname(server_id: int, user: StealthIM.User, username: str) -> S
     if not col or datetime.datetime.now(datetime.timezone.utc) - col.last_update.replace(
             tzinfo=datetime.timezone.utc) > datetime.timedelta(days=1):
         res = await user.get_user_info(username)
-        if res.result.code == 800:
+        if res.result.code == codes.SUCCESS:
             if col:
                 update_nickname(server_id, username, res.nickname)
             else:
@@ -206,7 +207,7 @@ async def get_nickname(server_id: int, user: StealthIM.User, username: str) -> S
         return res
     return StealthIM.group.StealthIM.user.UserPublicInfo(
         result=StealthIM.apis.common.Result(
-            code=800,
+            code=codes.SUCCESS,
             msg=""
         ),
         nickname=str(col.nickname),
@@ -236,7 +237,8 @@ def add_message(
         )
         session.add(msg)
         session.commit()
-    return msg
+        msg = session.query(Message).filter_by(server_id=server_id, group_id=group_id).first()
+        return msg
 
 
 def get_latest_messages(

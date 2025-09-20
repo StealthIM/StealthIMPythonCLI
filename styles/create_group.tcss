@@ -1,0 +1,17 @@
+CreateGroupScreen {
+    align: center middle;
+}
+
+#create-container {
+    height: 13;
+    width: 50;
+}
+
+#create-group-name {
+    width: 40;
+}
+
+#create-password {
+    width: 40;
+}
+

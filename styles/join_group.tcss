@@ -1,0 +1,16 @@
+JoinGroupScreen {
+    align: center middle;
+}
+
+#join-container {
+    height: 13;
+    width: 50;
+}
+
+#join-group-id {
+    width: 40;
+}
+
+#join-password {
+    width: 40;
+}

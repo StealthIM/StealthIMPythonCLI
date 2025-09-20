@@ -9,7 +9,6 @@ from textual.widgets import Header, Footer, Button, Input, Label, ListView, List
 
 from patch import Screen, ModalScreen
 from .common import LoginUserScreenReturn
-from log import logger
 
 
 class LoginScreen(Screen):
@@ -22,19 +21,19 @@ class LoginScreen(Screen):
         self.logging = False
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
-        yield Label(f"服务器: {self.app.data.server_db.name}", id="server-label")
+        yield Header()
+        yield Label(f"Server: {self.app.data.server_db.name}", id="server-label")
         self.users = db.load_users_from_db(self.app.data.server_db.id)
         self.user_list = ListView(
             *[ListItem(Label(user.username)) for user in self.users]
         )
         yield self.user_list
         with Horizontal():
-            yield Button("返回", id="back")
-            yield Button("登录", id="login", variant="success")
-            yield Button("登录新账号", id="login_new")
-            yield Button("注册", id="register")
-            yield Button("删除", id="remove")
+            yield Button("Back", id="back")
+            yield Button("Login", id="login", variant="success")
+            yield Button("Login New Account", id="login_new")
+            yield Button("Register", id="register")
+            yield Button("Delete", id="remove")
         yield Label("", id="status")
         yield Footer()
 
@@ -45,7 +44,6 @@ class LoginScreen(Screen):
     @work()
     @on(Button.Pressed, "#login_new")
     async def on_login_new(self, _event: Button) -> None:
-        from .login import LoginNewUserScreen
         ret = await self.app.push_screen_wait(LoginNewUserScreen.SCREEN_NAME)
         if not (ret and not ret.user_cancelled and ret.username and ret.session):
             return
@@ -120,12 +118,12 @@ class ReLoginScreen(ModalScreen[LoginUserScreenReturn]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="login-container"):
-            yield Label("登录已过期. 请重新登录: ")
-            self.password = Input(placeholder="密码", id="password", password=True)
+            yield Label("Login has expired. Please log in again: ")
+            self.password = Input(placeholder="Password", id="password", password=True)
             yield self.password
             with Horizontal():
-                yield Button("返回", id="back")
-                yield Button("登录", id="login", variant="success")
+                yield Button("Back", id="back")
+                yield Button("Login", id="login", variant="success")
             yield Label("", id="status")
 
     @on(Button.Pressed, "#back")
@@ -141,23 +139,23 @@ class ReLoginScreen(ModalScreen[LoginUserScreenReturn]):
         password = (self.password.value or "").strip()
         status = self.query_one("#status", Label)
         if not password:
-            status.update("[red]请输入密码[/]")
+            status.update("[red]Please enter your password[/]")
             return
-        status.update("[yellow]正在登录，请稍候...[/]")
+        status.update("[yellow]Logging in, please wait...[/]")
         self.is_logging = True
 
         try:
             res = await self.app.data.server.login(username, password)
             self.is_logging = False
             if not res:
-                status.update("[red]登录失败，请检查密码[/]")
+                status.update("[red]Login failed, please check your password[/]")
                 return
         except Exception as e:
             self.app.data.user = None
-            status.update(f"[red]登录失败: {e}[/]")
+            status.update(f"[red]Login failed: {e}[/]")
             self.is_logging = False
             return
-        status.update("[green]登录成功！[/]")
+        status.update("[green]Login successful![/]")
         await asyncio.sleep(1)
         self.dismiss(LoginUserScreenReturn(
             user_cancelled=False,
@@ -179,13 +177,13 @@ class LoginNewUserScreen(ModalScreen[LoginUserScreenReturn]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="login-container"):
-            self.username = Input(placeholder="用户名", id="username")
-            self.password = Input(placeholder="密码", id="password", password=True)
+            self.username = Input(placeholder="Username", id="username")
+            self.password = Input(placeholder="Password", id="password", password=True)
             yield self.username
             yield self.password
             with Horizontal():
-                yield Button("返回", id="back")
-                yield Button("登录", id="login", variant="success")
+                yield Button("Back", id="back")
+                yield Button("Login", id="login", variant="success")
             yield Label("", id="status")
 
     @on(Button.Pressed, "#back")
@@ -201,23 +199,23 @@ class LoginNewUserScreen(ModalScreen[LoginUserScreenReturn]):
         password = (self.password.value or "").strip()
         status = self.query_one("#status", Label)
         if not username or not password:
-            status.update("[red]请输入用户名和密码[/]")
+            status.update("[red]Please enter your username and password[/]")
             return
-        status.update("[yellow]正在登录，请稍候...[/]")
+        status.update("[yellow]Logging in, please wait...[/]")
         self.is_logging = True
 
         try:
             res = await self.app.data.server.login(username, password)
             self.is_logging = False
             if not res:
-                status.update("[red]登录失败，请检查用户名和密码[/]")
+                status.update("[red]Login failed, please check your username and password[/]")
                 return
         except Exception as e:
             self.app.data.user = None
-            status.update(f"[red]登录失败: {e}[/]")
+            status.update(f"[red]Login failed: {e}[/]")
             self.is_logging = False
             return
-        status.update("[green]登录成功！[/]")
+        status.update("[green]Login successful![/]")
         await asyncio.sleep(1)
         self.dismiss(LoginUserScreenReturn(
             user_cancelled=False,

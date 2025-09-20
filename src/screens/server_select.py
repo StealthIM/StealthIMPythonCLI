@@ -19,16 +19,16 @@ class ServerSelectScreen(Screen):
         self.server_list: ListView | None = None
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
-        yield Static("请选择一个服务器: ")
+        yield Header()
+        yield Static("Please select a server: ")
         self.server_list = ListView(
             *[ListItem(Label(f"{srv.name} - {srv.url}")) for srv in self.servers]
         )
         yield self.server_list
         with Horizontal():
-            yield Button("添加服务器", id="add")
-            yield Button("删除服务器", id="delete")
-            yield Button("进入", id="enter")
+            yield Button("Add Server", id="add")
+            yield Button("Delete Server", id="delete")
+            yield Button("Enter", id="enter")
         yield Label("", id="status")
         yield Footer()
 
@@ -64,7 +64,7 @@ class ServerSelectScreen(Screen):
         if not (ret and not ret.user_cancelled and ret.name and ret.url):
             return
         if not await StealthIM.Server(ret.url).ping():
-            status.update("[red]服务器不可达[/]")
+            status.update("[red]Server unreachable[/]")
             return
         db.save_server_to_db(ret.name, ret.url)
         self.servers = db.load_servers_from_db()
@@ -78,7 +78,7 @@ class ServerSelectScreen(Screen):
 
 class AddServerScreen(ModalScreen[AddServerScreenReturn]):
     SCREEN_NAME = "AddServer"
-    CSS_PATH = "../styles/add_server.tcss"
+    CSS_PATH = "../../styles/add_server.tcss"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -87,13 +87,13 @@ class AddServerScreen(ModalScreen[AddServerScreenReturn]):
 
     def compose(self) -> ComposeResult:
         yield Grid(
-            Label("添加新服务器", id="title"),
-            Label("服务器名称："),
+            Label("Add New Server", id="title"),
+            Label("Server Name:"),
             name_input := Input(placeholder="Server Name"),
-            Label("服务器地址："),
+            Label("Server Address:"),
             addr_input := Input(placeholder="example.com"),
-            Button("确认添加", id="confirm"),
-            Button("取消", id="cancel"),
+            Button("Confirm Add", id="confirm"),
+            Button("Cancel", id="cancel"),
             id="dialog"
         )
         self.name_input = name_input

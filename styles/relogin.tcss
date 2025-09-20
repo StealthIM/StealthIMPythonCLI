@@ -3,5 +3,5 @@ ReLoginScreen {
 }
 
 #login-container {
-    height: 14;
+    height: 13;
 }

@@ -56,12 +56,8 @@
     margin-left: 1;
 }
 
-/* 聊天消息的 meta 信息 */
 #meta.right {
     width: auto;
-}
-
-Right {
 }
 
 .meta.right {
@@ -78,4 +74,12 @@ Right {
     margin: 0 1 1 0;
     padding: 0 1 -1 0;
     width: 60%;
+}
+
+#group_bar{
+    height: 1;
+}
+
+#add_group{
+    background: gray;
 }
