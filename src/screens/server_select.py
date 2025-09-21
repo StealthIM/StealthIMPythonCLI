@@ -1,3 +1,5 @@
+from typing import cast
+
 import StealthIM
 import db
 
@@ -59,7 +61,6 @@ class ServerSelectScreen(Screen):
     @on(Button.Pressed, "#add")
     async def on_add(self, _event: Button.Pressed) -> None:
         status = self.query_one("#status", Label)
-        from .server_select import AddServerScreen
         ret = await self.app.push_screen_wait(AddServerScreen.SCREEN_NAME)
         if not (ret and not ret.user_cancelled and ret.name and ret.url):
             return
@@ -103,8 +104,8 @@ class AddServerScreen(ModalScreen[AddServerScreenReturn]):
     def on_confirm(self, _event: Button.Pressed) -> None:
         if not (self.name_input and self.addr_input):
             return
-        name = self.name_input.value.strip()
-        address = self.addr_input.value.strip()
+        name = cast(str, self.name_input.value).strip()
+        address = cast(str, self.addr_input.value).strip()
         if name and address:
             self.dismiss(AddServerScreenReturn(
                 user_cancelled=False,

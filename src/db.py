@@ -1,4 +1,3 @@
-import dataclasses
 import datetime
 import os
 from typing import cast, Optional
@@ -154,11 +153,11 @@ def get_group_msgid(group_id: int, server_id: int) -> Optional[int]:
         return None
 
 
-async def get_group_name(server_id: int, user: StealthIM.User, group_id: int) -> StealthIM.group.GroupPublicInfoResult:
+async def get_group_name(server_id: int, user: StealthIM.User, group_id: int, force_flush=False) -> StealthIM.group.GroupPublicInfoResult:
     with SessionLocal() as session:
         group = session.query(Group).filter_by(group_id=group_id, server_id=server_id).first()
     if not group or datetime.datetime.now(datetime.timezone.utc) - group.last_update.replace(
-            tzinfo=datetime.timezone.utc) > datetime.timedelta(days=1):
+            tzinfo=datetime.timezone.utc) > datetime.timedelta(days=1) or force_flush:
         res = await StealthIM.Group(user, group_id).get_info()
         if res.result.code == codes.SUCCESS:
             if group:
@@ -186,7 +185,7 @@ def add_nickname(server_id: int, username: str, nickname: str) -> None:
 
 def update_nickname(server_id: int, username: str, nickname: str) -> None:
     with SessionLocal() as session:
-        col = session.query(Nickname).filter_by(username=username).first()
+        col = session.query(Nickname).filter_by(username=username, server_id=server_id).first()
         if col:
             col.nickname = nickname
             col.last_update = datetime.datetime.now(datetime.timezone.utc)

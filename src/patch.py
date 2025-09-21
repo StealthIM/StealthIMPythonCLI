@@ -2,6 +2,7 @@
 # For unknown reason, the following code cannot be warped in a single if TYPE_CHECKING block
 from typing import TYPE_CHECKING, cast, TypeVar
 
+from textual.containers import Container
 from textual.screen import Screen, ModalScreen
 
 if TYPE_CHECKING:
@@ -15,6 +16,12 @@ else:
 class Screen(Screen):
     SCREEN_NAME: str
 
+    @property
+    def app(self) -> IMApp:
+        return cast(IMApp, super().app)
+
+
+class Container(Container):
     @property
     def app(self) -> IMApp:
         return cast(IMApp, super().app)

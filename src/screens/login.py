@@ -1,5 +1,6 @@
 import asyncio
 import StealthIM
+import codes
 import db
 
 from textual import on, work
@@ -91,8 +92,7 @@ class LoginScreen(Screen):
         self.app.data.user_db = user
         self.app.data.user = StealthIM.User(self.app.data.server, user.session)
         api_res = await self.app.data.user.get_self_info()
-        if api_res.result.code == 1502:
-            from .login import ReLoginScreen
+        if api_res.result.code == codes.AUTHENTICATION_FAILED:
             res = await self.app.push_screen_wait(ReLoginScreen(user.username))
             if res.user_cancelled:
                 return

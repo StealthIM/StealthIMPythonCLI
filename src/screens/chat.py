@@ -4,20 +4,182 @@ from typing import Optional
 
 from textual import on, work
 from textual.app import ComposeResult
-from textual.containers import Vertical, Horizontal, Right, VerticalScroll
-from textual.events import Key, Event
+from textual.containers import Horizontal, Right, Vertical, VerticalScroll
+from textual.events import Click, Event, Key
 from textual.reactive import reactive
-from textual.widgets import Button, Label, ListView, ListItem, TextArea
+from textual.widgets import Button, Label, ListItem, ListView, TextArea
 from textual.worker import Worker
 
 import StealthIM
 import codes
 import db
-from patch import Screen
+from patch import Screen, Container
 from .common import MessageData
-from .join_group import JoinGroupScreen
-from .create_group import CreateGroupScreen
-from .widgets import TopDetectingScroll, ScrolledToTop, ChatMessage, Popup
+from .group_manage import InviteMemberScreen, JoinGroupScreen, CreateGroupScreen, ModifyGroupNameScreen, \
+    ModifyGroupPasswordScreen, SetMemberScreen
+from .widgets import ChatMessage, FocusableLabel, PopupMenu, PopupPlane, TopDetectingScroll
+
+
+class GroupManagerContainer(Container):
+    DEFAULT_CSS = """
+    GroupManagerContainer {
+        width: 0.4fr;
+        padding: 1 2;
+        border: round grey;
+        background: $panel;
+    }
+    #member-bar {
+        height: 1;
+    }
+    #member-list {
+        height: 10;
+    }
+    .auto-height {
+        height: auto;
+    }
+    .border {
+        border: round grey;
+        height: auto;
+    }
+    .auto-width {
+        width: auto;
+    }
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.parent: ChatScreen  # type: ignore[assignment]
+        self.users = []
+
+    def compose(self) -> ComposeResult:
+        with VerticalScroll():
+            with Container(classes="border"):
+                with Horizontal(classes="auto-height"):
+                    yield Label("ID: ")
+                    yield Label("", id="group-id-value")
+                with Horizontal(classes="auto-height"):
+                    yield Label("Name: ")
+                    yield Label("", id="group-name-value")
+                    with Right():
+                        yield FocusableLabel("Change", id="change-name", classes="link")
+                with Horizontal(classes="auto-height"):
+                    yield Label("Password (won't show)")
+                    with Right():
+                        yield FocusableLabel("Change", id="change-password", classes="link")
+            with Vertical(classes="border"):
+                with Horizontal(id="member-bar"):
+                    yield Label("Members: ")
+                    yield Label("", id="member-count")
+                    with Right():
+                        with Horizontal(classes="auto-width"):
+                            yield FocusableLabel("Set as", id="set-member")
+                            yield FocusableLabel("Invite", id="invite-member", variant="success")
+                yield ListView(id="member-list")
+
+    @work()
+    async def on_mount(self, _event) -> None:
+        group_id_label = self.query_one("#group-id-value", Label)
+        group_name_label = self.query_one("#group-name-value", Label)
+        group_members_count = self.query_one("#member-count", Label)
+        group_members_list = self.query_one("#member-list", ListView)
+
+        # Reset all values
+        group_name_label.update("Loading...")
+        group_members_list.clear()
+        group_members_list.append(ListItem(Label("Loading...")))
+        group_members_count.update("")
+
+        group_id_label.update(str(self.app.data.group.group_id))
+
+        self.flush_name()
+
+        self.flush_group_members()
+
+    @work()
+    async def flush_name(self):
+        group_name_label = self.query_one("#group-name-value", Label)
+        name_res = await db.get_group_name(
+            self.app.data.server_db.id,
+            self.app.data.user,
+            self.app.data.group.group_id
+        )
+        if name_res.result.code != codes.SUCCESS:
+            group_name_label.update("Unknown")
+            self.notify(
+                f"[red]{name_res.result.code} ({codes.get_msg(name_res.result.code)}): {name_res.result.msg}[/])",
+                title="Failed to get group name",
+                severity="error",
+            )
+        else:
+            group_name_label.update(name_res.name)
+
+    @work()
+    async def flush_group_members(self):
+        group_members_count = self.query_one("#member-count", Label)
+        group_members_list = self.query_one("#member-list", ListView)
+        members_res = await self.app.data.group.get_members()
+        if members_res.result.code != codes.SUCCESS:
+            await group_members_list.clear()
+            await group_members_list.append(ListItem(Label("Failed")))
+            self.notify(
+                f"[red]{members_res.result.code} ({codes.get_msg(members_res.result.code)}): {members_res.result.msg}[/])",
+                title="Failed to get group members",
+                severity="error",
+            )
+        else:
+            await group_members_list.clear()
+            group_members_count.update(str(len(members_res.members)))
+            self.users = [member.name for member in members_res.members]
+            for member in members_res.members:
+                role = member.type.name
+                nickname_res = await db.get_nickname(
+                    self.app.data.server_db.id,
+                    self.app.data.user,
+                    member.name
+                )
+                if nickname_res.result.code != codes.SUCCESS:
+                    name = member.name
+                else:
+                    name = f"{nickname_res.nickname} ({member.name})"
+                group_members_list.append(ListItem(Label(f"{name} - {role}")))
+
+    @on(Click, "#change-name")
+    async def on_modify_group_info(self, _event) -> None:
+        res = await self.app.push_screen_wait(ModifyGroupNameScreen(self.app.data.group))
+        if res:
+            await db.get_group_name(
+                self.app.data.server_db.id,
+                self.app.data.user,
+                self.app.data.group.group_id,
+                True
+            )
+            self.flush_name()
+            self.parent.flush_groups()
+
+    @on(Click, "#change-password")
+    async def on_modify_group_password(self, _event) -> None:
+        await self.app.push_screen(ModifyGroupPasswordScreen(self.app.data.group))
+
+    @on(Click, "#invite-member")
+    async def on_invite_member(self, _event) -> None:
+        res = await self.app.push_screen_wait(InviteMemberScreen(self.app.data.group))
+        if res:
+            self.flush_group_members()
+            self.parent.flush_groups()
+
+    @on(Click, "#set-member")
+    async def on_set_member(self, _event) -> None:
+        member_list = self.query_one("#member-list", ListView)
+        if member_list.index is None:
+            self.notify("No member to set", title="Error", severity="error")
+            return
+
+        user = self.users[member_list.index]
+
+        res = await self.app.push_screen_wait(SetMemberScreen(self.app.data.group, user))
+        if res:
+            self.flush_group_members()
+            self.parent.flush_groups()
 
 
 class ChatScreen(Screen):
@@ -45,10 +207,11 @@ class ChatScreen(Screen):
                 with Horizontal(id="group_bar"):
                     yield Label("Groups")
                     with Right():
-                        yield Popup(
+                        yield PopupMenu(
                             "+",
                             ("Join Group", "join_group"),
                             ("Create Group", "create_group"),
+                            id="group-commands",
                         )
                 self.groups_list = ListView(id="groups_list")
                 yield self.groups_list
@@ -57,7 +220,7 @@ class ChatScreen(Screen):
             with Vertical(id="chat"):
                 with Horizontal(id="group-header"):
                     yield Label("", id="chat-title")
-                    yield Label("...", id="group-menu")
+                    yield PopupPlane("...", id="group-menu", inner_widget=GroupManagerContainer())
 
                 # Message area (scrollable)
                 with TopDetectingScroll(id="messages"):
@@ -74,11 +237,12 @@ class ChatScreen(Screen):
 
     # Update group lists when loading this page
     async def on_mount(self, _event: Event) -> None:
+        group_menu = self.query_one("#group-menu", PopupPlane)
+        group_menu.display = False
         self.flush_groups()
 
-    @on(Popup.Command)
-    async def on_command(self, event: Popup.Command) -> None:
-        self.log(f"Command: {event.name}")
+    @on(PopupMenu.Command, "#group-commands")
+    async def on_group_menu_pressed(self, event: PopupMenu.Command) -> None:
         if event.name == "join_group":
             await self.join_group()
         elif event.name == "create_group":
@@ -92,6 +256,11 @@ class ChatScreen(Screen):
         if group_id == self.last_group:
             # The group is not changed
             return
+
+        # Show the group setting button
+        group_menu = self.query_one("#group-menu", PopupPlane)
+        group_menu.display = True
+
         if self.message_worker:
             # Stop the last message worker
             self.message_worker.cancel()
@@ -118,7 +287,8 @@ class ChatScreen(Screen):
 
     # Load more messages when scrolled to top
     @work()
-    async def on_scrolled_to_top(self, _event: ScrolledToTop):
+    @on(TopDetectingScroll.ScrolledToTop, "#messages")
+    async def on_no_more_message(self, _event: TopDetectingScroll.ScrolledToTop):
         messages = self.query_one("#messages", TopDetectingScroll)
         if not messages.children:
             return
@@ -143,7 +313,8 @@ class ChatScreen(Screen):
             messages.reset_watching()
 
     # Catch the Ctrl+Enter on the input
-    async def on_key(self, event: Key) -> None:
+    @on(Key)
+    async def on_send_by_key(self, event: Key) -> None:
         if event.key == "ctrl+j":
             focused = self.focused  # 当前聚焦控件
             if isinstance(focused, TextArea) and focused.id == "msg-input":
@@ -151,7 +322,7 @@ class ChatScreen(Screen):
 
     # The send button
     @on(Button.Pressed, "#send")
-    async def on_send(self, _event: Event) -> None:
+    async def on_send_by_btn(self, _event: Event) -> None:
         self.do_send()
 
     # Helper functions
@@ -172,7 +343,8 @@ class ChatScreen(Screen):
             **attr
         )
 
-    async def get_group_members(self, group):
+    @staticmethod
+    async def get_group_members(group):
         res = await group.get_members()
         if res.result.code != codes.SUCCESS:
             members = "?"
@@ -196,7 +368,8 @@ class ChatScreen(Screen):
         else:
             chat_title.update(res.name)
 
-    def build_msg_from_db(self, msg: db.Message):
+    @staticmethod
+    def build_msg_from_db(msg: db.Message):
         return MessageData(
             group_id=msg.group_id,
             server_id=msg.server_id,
@@ -215,7 +388,6 @@ class ChatScreen(Screen):
     async def create_group(self):
         if await self.app.push_screen_wait(CreateGroupScreen.SCREEN_NAME):
             self.flush_groups()
-
 
     # Workers
 

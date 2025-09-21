@@ -1,0 +1,9 @@
+GroupManagerContainer {
+    align: center middle;
+}
+
+#set-member-container {
+    padding: 2 4;
+    width: 60;
+    height: 20;
+}

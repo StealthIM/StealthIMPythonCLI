@@ -61,7 +61,8 @@ class RegisterScreen(ModalScreen):
             res = await self.app.data.server.register(username, password, nickname)
             if res.result.code != codes.SUCCESS:
                 status.update(
-                    f"[red]Registration failed: {res.result.code}({codes.get_msg(res.result.code)}): {res.result.msg}[/]"
+                    f"[red]Registration failed: "
+                    f"{res.result.code}({codes.get_msg(res.result.code)}): {res.result.msg}[/]"
                 )
                 return
         except Exception as e:
