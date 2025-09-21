@@ -7,6 +7,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 import StealthIM
 import codes
+import log
 
 DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/configs.sqlite"))
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -14,6 +15,8 @@ os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 Base = declarative_base()
 engine = create_engine(f"sqlite:///{DB_PATH}", echo=False, future=True)
 SessionLocal = sessionmaker(bind=engine)
+
+MAX_MSGID = 2 ** 63 - 1
 
 
 class Server(Base):
@@ -145,12 +148,18 @@ def update_group_msgid(group_id: int, server_id: int, msgid: int) -> None:
             session.commit()
 
 
-def get_group_msgid(group_id: int, server_id: int) -> Optional[int]:
-    with SessionLocal() as session:
-        group = session.query(Group).filter_by(group_id=group_id, server_id=server_id).first()
-        if group:
-            return cast(int, group.latest_msgid)
-        return None
+def get_group_msgid(group_id: int, server_id: int, latest: bool = True) -> Optional[int]:
+    if latest:
+        data = get_messages(server_id, group_id, MAX_MSGID, False, 1)
+        if data:
+            return cast(int, data[0].msgid)
+        return 1
+    else:
+        data = get_messages(server_id, group_id, 0, True, 1)
+        if data:
+            return cast(int, data[0].msgid)
+        return MAX_MSGID
+
 
 
 async def get_group_name(server_id: int, user: StealthIM.User, group_id: int, force_flush=False) -> StealthIM.group.GroupPublicInfoResult:
@@ -236,7 +245,7 @@ def add_message(
         )
         session.add(msg)
         session.commit()
-        msg = session.query(Message).filter_by(server_id=server_id, group_id=group_id).first()
+        msg = session.query(Message).filter_by(server_id=server_id, group_id=group_id, msgid=msgid).first()
         return msg
 
 

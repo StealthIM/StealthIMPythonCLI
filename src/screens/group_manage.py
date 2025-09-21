@@ -41,8 +41,8 @@ class JoinGroupScreen(ModalScreen):
         group_id_str = (self.group_id.value or "").strip()
         password = (self.password.value or "").strip()
         status = self.query_one("#status", Label)
-        if not group_id_str or not password:
-            status.update("[red]Please enter group ID and password[/]")
+        if not group_id_str:
+            status.update("[red]Please enter group ID[/]")
             return
         if not group_id_str.isdigit():
             status.update("[red]Please enter a valid group ID[/]")
@@ -50,7 +50,7 @@ class JoinGroupScreen(ModalScreen):
         status.update("[yellow]Joining group, please wait...[/]")
         self.is_joining = True
         try:
-            res = await StealthIM.Group.join(self.app.data.user, int(group_id_str), password)
+            res = await StealthIM.Group(self.app.data.user, int(group_id_str)).join(password)
             if res.result.code == codes.SUCCESS:
                 status.update("[green]Joined group successfully![/]")
                 self.dismiss(True)

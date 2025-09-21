@@ -13,6 +13,7 @@ from textual.worker import Worker
 import StealthIM
 import codes
 import db
+import log
 from patch import Screen, Container
 from .common import MessageData
 from .group_manage import InviteMemberScreen, JoinGroupScreen, CreateGroupScreen, ModifyGroupNameScreen, \
@@ -272,15 +273,32 @@ class ChatScreen(Screen):
         await self.update_chat_title(group_id)
         # Reset the scroll
         messages = self.query_one("#messages", TopDetectingScroll)
-        messages.reset_watching()
         messages.remove_children()
 
         # First load messages from db
         msgs = db.get_latest_messages(self.app.data.server_db.id, group_id, limit=self.LIMIT)
-        for msg in msgs:
-            message = self.build_msg_from_db(msg)
-            await self.add_message(messages, message)
+        if msgs:
+            for msg in msgs:
+                message = self.build_msg_from_db(msg)
+                await self.add_message(messages, message)
+        else:
+            # A new group, we only get the newest LIMIT messages
+            # from_id=0, old_to_new=False means pull the latest messages
+            gen = self.group.receive_text(from_id=0, old_to_new=False, sync=False, limit=self.LIMIT)
+            msgs = [x async for x in gen][::-1]
+            log.logger.error(msgs)
+            for msg in msgs:
+                message = db.add_message(
+                    self.app.data.server_db.id, self.group.group_id, msg.type.value,
+                    msg.msg.replace("\n", "\n\n"),
+                    datetime.datetime.fromtimestamp(int(msg.time)), msg.username,
+                    msg.msgid, msg.hash
+                )
+                message = self.build_msg_from_db(message)
+                await self.add_message(messages, message)
+
         messages.scroll_end()
+        messages.reset_watching()
 
         # Then start the message worker to receive
         self.message_worker = self.get_messages(messages)
@@ -292,6 +310,8 @@ class ChatScreen(Screen):
         messages = self.query_one("#messages", TopDetectingScroll)
         if not messages.children:
             return
+
+        # First get messages from database
         new_messages = db.get_messages(
             self.app.data.server_db.id,
             self.group.group_id,
@@ -299,18 +319,32 @@ class ChatScreen(Screen):
             old_to_new=False,
             limit=self.LIMIT
         )
+        if new_messages:
+            distance_to_bottom = messages.max_scroll_y - messages.scroll_offset.y
+            for msg in new_messages[::-1]:
+                message = self.build_msg_from_db(msg)
+                await self.add_message(messages, message, bottom=False)
 
-        distance_to_bottom = messages.max_scroll_y - messages.scroll_offset.y
-        for msg in new_messages[::-1]:
-            message = self.build_msg_from_db(msg)
-            await self.add_message(messages, message, bottom=False)
-
-            new_offset = messages.max_scroll_y - distance_to_bottom
-            messages.scroll_to(y=new_offset, animate=False)
-
-        if len(new_messages) == self.LIMIT:
-            # Has more data, watch for next event
+                new_offset = messages.max_scroll_y - distance_to_bottom
+                messages.scroll_to(y=new_offset, animate=False)
             messages.reset_watching()
+        else:
+            # There's no more messages in the database, try to pull from server
+            oldest_msgid = db.get_group_msgid(self.group.group_id, self.app.data.server_db.id, False)
+            gen = self.group.receive_text(from_id=oldest_msgid, old_to_new=False, sync=False, limit=self.LIMIT)
+            msgs = [x async for x in gen][::-1]
+            self.log(msgs)
+            for msg in msgs:
+                message = db.add_message(
+                    self.app.data.server_db.id, self.group.group_id, msg.type.value,
+                    msg.msg.replace("\n", "\n\n"),
+                    datetime.datetime.fromtimestamp(int(msg.time)), msg.username,
+                    msg.msgid, msg.hash
+                )
+                message = self.build_msg_from_db(message)
+                await self.add_message(messages, message, bottom=False)
+            if len(msgs) >= self.LIMIT:
+                messages.reset_watching()
 
     # Catch the Ctrl+Enter on the input
     @on(Key)
