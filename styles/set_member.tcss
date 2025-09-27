@@ -1,4 +1,4 @@
-GroupManagerContainer {
+SetMemberScreen {
     align: center middle;
 }
 

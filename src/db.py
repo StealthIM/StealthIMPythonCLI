@@ -7,7 +7,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 import StealthIM
 import codes
-import log
+from StealthIM.apis.message import MessageType
 
 DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/configs.sqlite"))
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -66,12 +66,26 @@ class Nickname(Base):
     last_update = Column(DateTime, nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
 
 
+class FileHash(Base):
+    __tablename__ = "file_hashes"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    server_id = Column(Integer, nullable=False)
+    group_id = Column(Integer, nullable=False)
+    hash = Column(String, nullable=False)
+    size = Column(Integer, nullable=False)
+
+
 Base.metadata.create_all(bind=engine)
 
 
 def load_servers_from_db() -> list[Server]:
     with SessionLocal() as session:
         return cast(list[Server], session.query(Server).all())
+
+
+def get_server_from_db(url: str) -> Optional[Server]:
+    with SessionLocal() as session:
+        return session.query(Server).filter_by(url=url).first()
 
 
 def save_server_to_db(name: str, url: str) -> None:
@@ -249,6 +263,21 @@ def add_message(
         return msg
 
 
+def recall_message(
+        server_id: int,
+        group_id: int,
+        msgid: int,
+):
+    with SessionLocal() as session:
+        msg = session.query(Message).filter_by(server_id=server_id, group_id=group_id, msgid=msgid).first()
+        if not msg:
+            return
+        msg.type = MessageType.Recall
+        msg.msg = ""
+        session.add(msg)
+        session.commit()
+
+
 def get_latest_messages(
         server_id: int,
         group_id: int,
@@ -299,3 +328,31 @@ def get_messages(
                     .from_statement(subquery.select().order_by(subquery.c.msgid.asc()))
                     .all()
                     )
+
+
+def add_file_size(server_id: int, group_id: int, hash_: str, size: int) -> None:
+    with SessionLocal() as session:
+        count = session.query(FileHash).count()
+        if count >= 1000:
+            # 删除最旧的项
+            oldest = session.query(FileHash).order_by(FileHash.id.asc()).limit(count - 999).all()
+            for item in oldest:
+                session.delete(item)
+        file_hash = FileHash(server_id=server_id, group_id=group_id, hash=hash_, size=size)
+        session.add(file_hash)
+        session.commit()
+
+
+async def get_file_size(group: StealthIM.Group, hash_str: str) -> int:
+    server_id = cast(int, get_server_from_db(group.user.server.url).id)
+    with SessionLocal() as session:
+        res = session.query(FileHash).filter_by(server_id=server_id, group_id=group.group_id, hash=hash_str).first()
+        if res:
+            return cast(int, res.size)
+
+        size_res = await group.get_file_info(hash_str)
+        if size_res.result.code == codes.SUCCESS:
+            add_file_size(server_id, group.group_id, hash_str, size_res.size)
+            return size_res.size
+        return 0
+

@@ -43,7 +43,7 @@ class IMApp(App):
     SCREENS = {
         screen.SCREEN_NAME: screen for screen in ALL_SCREENS
     }
-    BINDINGS = [("ctrl+b", "app_back", "返回上一屏")]
+    BINDINGS = [("ctrl+b", "app_back", "Back")]
 
     def __init__(self):
         super().__init__()

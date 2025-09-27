@@ -30,6 +30,7 @@ class MessageData:
     username: str
     hash: str
     nickname: Optional[str] = None
+    size: Optional[str] = None
 
 
 @dataclasses.dataclass

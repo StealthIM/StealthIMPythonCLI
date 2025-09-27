@@ -31,12 +31,20 @@
 }
 
 #messages {
-    height: 7fr;          /* 占满剩余空间 */
+    height: 7fr;
+    padding: 1;
+}
+
+#file-box {
+    height: auto;
+    width: auto;
+    border: solid gray;
+    margin-bottom: 1;
     padding: 1;
 }
 
 #input-area {
-    height: 3fr;            /* 固定高度 */
+    height: 3fr;
     border-top: solid gray;
     padding: 0 1;
 }
@@ -67,7 +75,6 @@
     padding: 0 1;
 }
 
-/* 消息体左对齐 */
 .msg {
     height: auto;
     border: solid gray;

@@ -1,24 +1,28 @@
 import asyncio
 import datetime
-from typing import Optional
+import math
+from typing import Optional, cast
 
-from textual import on, work
+import platformdirs
+from textual import events, on, work
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Right, Vertical, VerticalScroll
 from textual.events import Click, Event, Key
-from textual.reactive import reactive
-from textual.widgets import Button, Label, ListItem, ListView, TextArea
+from textual.widgets import Button, Checkbox, Footer, Label, ListItem, ListView, TextArea
 from textual.worker import Worker
 
 import StealthIM
 import codes
 import db
 import log
+import tools
+from StealthIM.apis.message import MessageType
 from patch import Screen, Container
 from .common import MessageData
 from .group_manage import InviteMemberScreen, JoinGroupScreen, CreateGroupScreen, ModifyGroupNameScreen, \
     ModifyGroupPasswordScreen, SetMemberScreen
-from .widgets import ChatMessage, FocusableLabel, PopupMenu, PopupPlane, TopDetectingScroll
+from .widgets import ChatMessage, FocusableLabel, Popup, PopupMenu, PopupPlane, TopDetectingScroll
 
 
 class GroupManagerContainer(Container):
@@ -183,13 +187,120 @@ class GroupManagerContainer(Container):
             self.parent.flush_groups()
 
 
+class MessageSelectContainer(Container):
+    DEFAULT_CSS = """
+    MessageSelectContainer {
+        width: 25%;
+        padding: 1 2;
+        border: round grey;
+        background: $panel;
+    }
+    #message-select {
+        height: 7fr;
+        border: solid gray;
+        padding-top: 3;
+        padding-right: 1;
+    }
+    #message-select-keys {
+        height: 3fr;
+    }
+    """
+    BINDINGS = [
+        Binding("ctrl+z", "recall", "Recall", show=False),
+        Binding("ctrl+d", "download", "Download", show=False),
+    ]
+
+    def __init__(self, message_list: VerticalScroll):
+        super().__init__()
+        self.message_count: Label | None = None
+        self.checkbox_container: Container | None = None
+        self.message_list = message_list
+        self.last_int = None
+        self.selected: list[ChatMessage] = []
+
+    def compose(self) -> ComposeResult:
+        with Horizontal():
+            yield Label("Selected: ")
+            yield (message_count := Label("0"))
+            self.message_count = message_count
+        yield (checkbox_container := Container(id="message-select"))
+        with Vertical(id="message-select-keys"):
+            yield Label("Keys:")
+            yield Label("Ctrl+z: Recall")
+            yield Label("Ctrl+d: Download file")
+        self.checkbox_container = checkbox_container
+
+    async def on_mount(self, event: events.Mount) -> None:
+        await self.callback_scroll(0, 0)
+
+    async def callback_scroll(self, _, new):
+        rounded = round(new)
+        if not math.isclose(new, rounded, abs_tol=1e-6) or self.last_int == rounded:
+            return
+        self.last_int = rounded
+
+        if not self.is_mounted:
+            return
+
+        messages = cast(list[ChatMessage], self.visible_children(self.message_list))
+
+        # 清空旧的 checkbox
+        await self.checkbox_container.remove_children()
+
+        # 根据可见消息重新生成 checkbox
+        for msg in messages:
+            # 计算相对 y 位置（消息的 virtual_region 是在 scroll 坐标系下的）
+            y = int(msg.virtual_region.y - self.message_list.scroll_y)
+
+            checkbox = Checkbox("Select", value=msg in self.selected)
+            # 用 inline-style 定位 checkbox
+            checkbox.styles.offset = (0, y)
+            checkbox.styles.position = "absolute"
+            checkbox.msg = msg
+
+            await self.checkbox_container.mount(checkbox)
+
+    @on(Checkbox.Changed)
+    def on_check(self, event: Checkbox.Changed) -> None:
+        checkbox = event.checkbox
+        # noinspection PyUnresolvedReferences
+        msg = checkbox.msg
+        if event.value:
+            self.selected.append(msg)
+        else:
+            self.selected.remove(msg)
+        self.message_count.update(str(len(self.selected)))
+
+    def action_recall(self):
+        return
+
+    async def action_download(self):
+        if not (
+            files := [msg for msg in self.selected if msg.type == MessageType.File.value]
+        ):
+            self.notify("No message to download", severity="error")
+            return
+
+        download_path = platformdirs.user_downloads_path()
+        hashes = [msg.hash for msg in self.selected]
+        filenames = [msg.text for msg in files]
+        await self.app.data.group.download_files(hashes, filenames, download_path)
+
+    @staticmethod
+    def visible_children(scroll_container: VerticalScroll):
+        return [
+            child for child in scroll_container.children
+            if scroll_container.window_region.contains_region(child.virtual_region)
+        ]
+
+
 class ChatScreen(Screen):
     SCREEN_NAME = "Chat"
     CSS_PATH = "../../styles/chat.tcss"
 
     LIMIT = 100
 
-    _push: reactive[bool] = reactive(True)
+    BINDINGS = [("ctrl+s", "select_msg", "Select message")]
 
     def __init__(self):
         super().__init__()
@@ -233,6 +344,7 @@ class ChatScreen(Screen):
                     with Right(id="tools"):
                         yield Button("Send", id="send")
         yield Label("", id="status")
+        yield Footer()
 
     # Events
 
@@ -286,7 +398,6 @@ class ChatScreen(Screen):
             # from_id=0, old_to_new=False means pull the latest messages
             gen = self.group.receive_text(from_id=0, old_to_new=False, sync=False, limit=self.LIMIT)
             msgs = [x async for x in gen][::-1]
-            log.logger.error(msgs)
             for msg in msgs:
                 message = db.add_message(
                     self.app.data.server_db.id, self.group.group_id, msg.type.value,
@@ -359,6 +470,18 @@ class ChatScreen(Screen):
     async def on_send_by_btn(self, _event: Event) -> None:
         self.do_send()
 
+    async def action_select_msg(self):
+        if not self.group:
+            self.notify("You need to select a group")
+            return
+        scroll = self.query_one("#messages", TopDetectingScroll)
+
+        container = MessageSelectContainer(scroll)
+        self.watch(scroll, "scroll_y", container.callback_scroll)
+        popup = Popup(container, position="left")
+        self.mount(popup)
+        await popup.show_popup()
+
     # Helper functions
 
     # Add a message in the scroll
@@ -372,10 +495,18 @@ class ChatScreen(Screen):
             attr = {"after": -1}
         else:
             attr = {"before": 0}
+
+        if message.type == MessageType.File.value:
+            file_res = await db.get_file_size(self.group, message.hash)
+            message.size = tools.int2size(int(file_res))
+
         await scroll.mount(
             ChatMessage(message, self.app.data.user_db),
             **attr
         )
+
+    async def recall_message(self, scroll: VerticalScroll):
+        ...
 
     @staticmethod
     async def get_group_members(group):
@@ -486,7 +617,11 @@ class ChatScreen(Screen):
                     )
                     db.update_group_msgid(group_id, server_id, message.msgid)
 
-                    await self.add_message(messages, self.build_msg_from_db(msg))
+                    if message.type != MessageType.Recall:
+                        await self.add_message(messages, self.build_msg_from_db(msg))
+                    else:
+                        db.recall_message(server_id, group_id, message.msgid)
+                        await self.recall_message(messages, message.msgid)
             except RuntimeError:
                 pass
             except asyncio.CancelledError:
