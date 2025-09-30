@@ -41,7 +41,6 @@ class Group(Base):
     group_id = Column(Integer, nullable=False)
     name = Column(String, nullable=False)
     last_update = Column(DateTime, nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
-    latest_msgid = Column(Integer, nullable=False)
 
 
 class Message(Base):
@@ -139,8 +138,8 @@ def update_user_session(user_id: int, new_session: str) -> None:
 def add_group(server_id: int, group_id: int, name: str) -> None:
     with SessionLocal() as session:
         group = Group(server_id=server_id, group_id=group_id, name=name,
-                      last_update=datetime.datetime.now(datetime.timezone.utc),
-                      latest_msgid=0)
+                      last_update=datetime.datetime.now(datetime.timezone.utc)
+                      )
         session.add(group)
         session.commit()
 
@@ -151,14 +150,6 @@ def update_group_name(group_id: int, server_id: int, new_name: str) -> None:
         if group:
             group.name = new_name
             group.last_update = datetime.datetime.now(datetime.timezone.utc)
-            session.commit()
-
-
-def update_group_msgid(group_id: int, server_id: int, msgid: int) -> None:
-    with SessionLocal() as session:
-        group = session.query(Group).filter_by(group_id=group_id, server_id=server_id).first()
-        if group:
-            group.latest_msgid = msgid
             session.commit()
 
 
@@ -173,7 +164,6 @@ def get_group_msgid(group_id: int, server_id: int, latest: bool = True) -> Optio
         if data:
             return cast(int, data[0].msgid)
         return MAX_MSGID
-
 
 
 async def get_group_name(server_id: int, user: StealthIM.User, group_id: int, force_flush=False) -> StealthIM.group.GroupPublicInfoResult:

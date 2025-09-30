@@ -109,32 +109,6 @@ class ReactiveListView(ListView):
         self.selected = None
 
 
-# noinspection PyProtectedMember
-def add_global_hook(screen):
-    if not hasattr(screen, "_popup_callback_click"):
-        screen._popups = []
-
-        # noinspection PyUnresolvedReferences,PyProtectedMember
-        async def callback(_self, event: Click) -> None:
-            for obj in screen._popups:
-                await obj.on_global_click(event)
-
-        screen._popup_callback_click = callback
-        screen._decorated_handlers.setdefault(Click, [])
-        screen._decorated_handlers[Click].append((callback, None))
-    if not hasattr(screen, "_popup_callback_key"):
-        screen._popups = []
-
-        # noinspection PyUnresolvedReferences,PyProtectedMember
-        async def callback(_self, event: Key) -> None:
-            for obj in screen._popups:
-                await obj.on_global_key(event)
-
-        screen._popup_callback_key = callback
-        screen._decorated_handlers.setdefault(Key, [])
-        screen._decorated_handlers[Key].append((callback, None))
-
-
 class AbstractPopup(Widget):
     def __init__(self, id):
         super().__init__(id=id)
@@ -165,7 +139,7 @@ class AbstractPopup(Widget):
             screen._decorated_handlers[Key].append((callback, None))
 
     def on_mount(self) -> None:
-        add_global_hook(self.app.screen)
+        self.add_global_hook(self.app.screen)
         # noinspection PyProtectedMember,PyUnresolvedReferences
         self.app.screen._popups.append(self)
 

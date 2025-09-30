@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import math
+import os
 from typing import Optional, cast
 
 import platformdirs
@@ -283,7 +284,22 @@ class MessageSelectContainer(Container):
 
         download_path = platformdirs.user_downloads_path()
         hashes = [msg.hash for msg in self.selected]
-        filenames = [msg.text for msg in files]
+        filenames = []
+        for msg in files:
+            filename = msg.text
+            # Remove invalid characters
+            filename = "".join(c for c in filename if c not in r'\/:*?"<>|')
+            if not filename:
+                filename = msg.hash
+            # Ensure the filename is unique
+            file_path = os.path.join(download_path, filename)
+            if os.path.exists(file_path):
+                base, ext = os.path.splitext(filename)
+                i = 1
+                while os.path.exists(os.path.join(download_path, f"{base}({i}){ext}")):
+                    i += 1
+                filename = f"{base}({i}){ext}"
+            filenames.append(filename)
         await self.app.data.group.download_files(hashes, filenames, download_path)
 
     @staticmethod
@@ -298,7 +314,7 @@ class ChatScreen(Screen):
     SCREEN_NAME = "Chat"
     CSS_PATH = "../../styles/chat.tcss"
 
-    LIMIT = 100
+    LIMIT = 10
 
     BINDINGS = [("ctrl+s", "select_msg", "Select message")]
 
@@ -396,7 +412,7 @@ class ChatScreen(Screen):
         else:
             # A new group, we only get the newest LIMIT messages
             # from_id=0, old_to_new=False means pull the latest messages
-            gen = self.group.receive_text(from_id=0, old_to_new=False, sync=False, limit=self.LIMIT)
+            gen = self.group.receive_latest_text(limit=self.LIMIT)
             msgs = [x async for x in gen][::-1]
             for msg in msgs:
                 message = db.add_message(
@@ -442,8 +458,8 @@ class ChatScreen(Screen):
         else:
             # There's no more messages in the database, try to pull from server
             oldest_msgid = db.get_group_msgid(self.group.group_id, self.app.data.server_db.id, False)
-            gen = self.group.receive_text(from_id=oldest_msgid, old_to_new=False, sync=False, limit=self.LIMIT)
-            msgs = [x async for x in gen][::-1]
+            gen = self.group.receive_text(from_id=oldest_msgid, sync=False, limit=self.LIMIT)
+            msgs = [x async for x in gen]
             self.log(msgs)
             for msg in msgs:
                 message = db.add_message(
@@ -605,9 +621,8 @@ class ChatScreen(Screen):
         group_id = self.group.group_id
 
         while True:
-            latest_msgid = db.get_group_msgid(group_id, server_id)
             try:
-                gen = self.group.receive_text(from_id=latest_msgid)
+                gen = self.group.receive_new_text(limit=self.LIMIT)
                 async for message in gen:
                     msg = db.add_message(
                         server_id, group_id, message.type.value,
@@ -615,13 +630,12 @@ class ChatScreen(Screen):
                         datetime.datetime.fromtimestamp(int(message.time)), message.username,
                         message.msgid, message.hash
                     )
-                    db.update_group_msgid(group_id, server_id, message.msgid)
 
-                    if message.type != MessageType.Recall:
-                        await self.add_message(messages, self.build_msg_from_db(msg))
-                    else:
-                        db.recall_message(server_id, group_id, message.msgid)
-                        await self.recall_message(messages, message.msgid)
+                    # if message.type != MessageType.Recall:
+                    await self.add_message(messages, self.build_msg_from_db(msg))
+                    # else:
+                    #     db.recall_message(server_id, group_id, message.msgid)
+                    #     await self.recall_message(messages, message.msgid)
             except RuntimeError:
                 pass
             except asyncio.CancelledError:
